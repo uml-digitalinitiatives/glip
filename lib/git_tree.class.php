@@ -80,7 +80,7 @@ class GitTree extends GitObject
      * @em foo/bar where @em foo is a file).
      *
      */
-    public function find(string|array $path)
+    public function find($path)
     {
         if (!is_array($path)) {
             $path = explode('/', $path);
@@ -168,7 +168,7 @@ class GitTree extends GitObject
      * created while updating the specified node. Those need to be written to
      * the repository together with the modified tree.
      */
-    public function updateNode(string|array $path, int $mode, string $object)
+    public function updateNode($path, $mode, $object)
     {
         if (!is_array($path)) {
             $path = explode('/', $path);
@@ -226,12 +226,12 @@ class GitTree extends GitObject
         }
     }
 
-    const int TREEDIFF_A = 0x01;
-    const int TREEDIFF_B = 0x02;
+    const TREEDIFF_A = 0x01;
+    const TREEDIFF_B = 0x02;
 
-    const int TREEDIFF_REMOVED = self::TREEDIFF_A;
-    const int TREEDIFF_ADDED = self::TREEDIFF_B;
-    const int TREEDIFF_CHANGED = 0x03;
+    const TREEDIFF_REMOVED = self::TREEDIFF_A;
+    const TREEDIFF_ADDED = self::TREEDIFF_B;
+    const TREEDIFF_CHANGED = 0x03;
 
     static public function treeDiff($a_tree, $b_tree): array
     {

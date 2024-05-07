@@ -51,38 +51,44 @@ function sha1_hex($bin)
 
 class Git
 {
-    public string|false $dir;
+    public $dir;
 
-    private array $packs;
+    private $packs;
 
-    const int OBJ_NONE = 0;
-    const int OBJ_COMMIT = 1;
-    const int OBJ_TREE = 2;
-    const int OBJ_BLOB = 3;
-    const int OBJ_TAG = 4;
-    const int OBJ_OFS_DELTA = 6;
-    const int OBJ_REF_DELTA = 7;
+    const OBJ_NONE = 0;
+    const OBJ_COMMIT = 1;
+    const OBJ_TREE = 2;
+    const OBJ_BLOB = 3;
+    const OBJ_TAG = 4;
+    const OBJ_OFS_DELTA = 6;
+    const OBJ_REF_DELTA = 7;
 
     static public function getTypeID(string $name): int
     {
-        return match (strtolower(trim($name))) {
-            'commit' => Git::OBJ_COMMIT,
-            'tree' => Git::OBJ_TREE,
-            'blob' => Git::OBJ_BLOB,
-            'tag' => Git::OBJ_TAG,
-            default => throw new Exception(sprintf('unknown type name: %s', $name)),
-        };
+        if ($name == 'commit') {
+            return Git::OBJ_COMMIT;
+        } elseif ($name == 'tree') {
+            return Git::OBJ_TREE;
+        } elseif ($name == 'blob') {
+            return Git::OBJ_BLOB;
+        } elseif ($name == 'tag') {
+            return Git::OBJ_TAG;
+        }
+        throw new Exception(sprintf('unknown type name: %s', $name));
     }
 
     static public function getTypeName(int $type): string
     {
-        return match ($type) {
-            Git::OBJ_COMMIT => 'commit',
-            Git::OBJ_TREE => 'tree',
-            Git::OBJ_BLOB => 'blob',
-            Git::OBJ_TAG => 'tag',
-            default => throw new Exception(sprintf('no string representation of type %d', $type)),
-        };
+        if ($type == Git::OBJ_COMMIT) {
+            return 'commit';
+        } elseif ($type == Git::OBJ_TREE) {
+            return 'tree';
+        } elseif ($type == Git::OBJ_BLOB) {
+            return 'blob';
+        } elseif ($type == Git::OBJ_TAG) {
+            return 'tag';
+        }
+        throw new Exception(sprintf('no string representation of type %d', $type));
     }
 
     public function __construct($dir)
