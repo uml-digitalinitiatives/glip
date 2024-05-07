@@ -25,21 +25,21 @@ class GitBlob extends GitObject
     /**
      * @brief The data contained in this blob.
      */
-    public $data = NULL;
+    public ?string $data = NULL;
 
     public function __construct($repo)
     {
-	parent::__construct($repo, Git::OBJ_BLOB);
+	    parent::__construct($repo, Git::OBJ_BLOB);
     }
 
-    public function _unserialize($data)
+    protected function _unserialize(string $data): void
     {
-	$this->data = $data;
+	    $this->data = $data;
     }
 
-    public function _serialize()
+    protected function _serialize(): string
     {
-	return $this->data;
+	    return $this->data;
     }
 }
 

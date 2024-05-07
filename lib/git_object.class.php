@@ -18,7 +18,7 @@
  * along with glip.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-class GitObject
+abstract class GitObject
 {
     /**
      * @brief (Git) The repository this object belongs to.
@@ -106,6 +106,8 @@ class GitObject
 	$this->_unserialize($data);
     }
 
+    abstract protected function _unserialize(string $data): void;
+
     /**
      * @brief Get the string representation of an object.
      *
@@ -116,6 +118,8 @@ class GitObject
     {
 	return $this->_serialize();
     }
+
+    abstract protected function _serialize(): string;
 
     /**
      * @brief Update the SHA-1 name of an object.

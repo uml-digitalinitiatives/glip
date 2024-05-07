@@ -27,76 +27,80 @@ class GitCommit extends GitObject
      * @brief (string) The tree referenced by this commit, as binary sha1
      * string.
      */
-    public $tree;
+    public string $tree;
 
     /**
      * @brief (array of string) Parent commits of this commit, as binary sha1
      * strings.
      */
-    public $parents;
+    public array $parents;
 
     /**
      * @brief (GitCommitStamp) The author of this commit.
      */
-    public $author;
+    public GitCommitStamp $author;
 
     /**
      * @brief (GitCommitStamp) The committer of this commit.
      */
-    public $committer;
+    public GitCommitStamp $committer;
 
     /**
      * @brief (string) Commit summary, i.e. the first line of the commit message.
      */
-    public $summary;
+    public string $summary;
 
     /**
      * @brief (string) Everything after the first line of the commit message.
      */
-    public $detail;
+    public string $detail;
+
+    private ?array $history = NULL;
 
     public function __construct($repo)
     {
-	parent::__construct($repo, Git::OBJ_COMMIT);
+	    parent::__construct($repo, Git::OBJ_COMMIT);
     }
 
-    public function _unserialize($data)
+    protected function _unserialize(string $data): void
     {
-	$lines = explode("\n", $data);
-	unset($data);
-	$meta = array('parent' => array());
-	while (($line = array_shift($lines)) != '')
-	{
-	    $parts = explode(' ', $line, 2);
-	    if (!isset($meta[$parts[0]]))
-		$meta[$parts[0]] = array($parts[1]);
-	    else
-		$meta[$parts[0]][] = $parts[1];
-	}
+	    $lines = explode("\n", $data);
+	    unset($data);
+	    $meta = array('parent' => array());
+	    while (($line = array_shift($lines)) != '')
+	    {
+	        $parts = explode(' ', $line, 2);
+	        if (!isset($meta[$parts[0]])) {
+                $meta[$parts[0]] = array($parts[1]);
+            }
+	        else {
+                $meta[$parts[0]][] = $parts[1];
+            }
+	    }
 
-	$this->tree = sha1_bin($meta['tree'][0]);
-	$this->parents = array_map('sha1_bin', $meta['parent']);
-	$this->author = new GitCommitStamp;
-	$this->author->unserialize($meta['author'][0]);
-	$this->committer = new GitCommitStamp;
-	$this->committer->unserialize($meta['committer'][0]);
+	    $this->tree = sha1_bin($meta['tree'][0]);
+	    $this->parents = array_map('sha1_bin', $meta['parent']);
+	    $this->author = new GitCommitStamp;
+	    $this->author->unserialize($meta['author'][0]);
+	    $this->committer = new GitCommitStamp;
+	    $this->committer->unserialize($meta['committer'][0]);
 
-	$this->summary = array_shift($lines);
-	$this->detail = implode("\n", $lines);
+        $this->summary = array_shift($lines);
+        $this->detail = implode("\n", $lines);
 
         $this->history = NULL;
     }
 
-    public function _serialize()
+    protected function _serialize(): string
     {
-	$s = '';
-	$s .= sprintf("tree %s\n", sha1_hex($this->tree));
-	foreach ($this->parents as $parent)
-	    $s .= sprintf("parent %s\n", sha1_hex($parent));
-	$s .= sprintf("author %s\n", $this->author->serialize());
-	$s .= sprintf("committer %s\n", $this->committer->serialize());
-	$s .= "\n".$this->summary."\n".$this->detail;
-	return $s;
+	    $s = sprintf("tree %s\n", sha1_hex($this->tree));
+	    foreach ($this->parents as $parent) {
+            $s .= sprintf("parent %s\n", sha1_hex($parent));
+        }
+	    $s .= sprintf("author %s\n", $this->author->serialize());
+	    $s .= sprintf("committer %s\n", $this->committer->serialize());
+	    $s .= "\n".$this->summary."\n".$this->detail;
+	    return $s;
     }
 
     /**
@@ -106,13 +110,14 @@ class GitCommit extends GitObject
      */
     public function getHistory()
     {
-        if ($this->history)
+        if (!is_null($this->history)) {
             return $this->history;
+        }
 
         /* count incoming edges */
-        $inc = array();
+        $inc = [];
 
-        $queue = array($this);
+        $queue = [$this];
         while (($commit = array_shift($queue)) !== NULL)
         {
             foreach ($commit->parents as $parent)
@@ -122,20 +127,22 @@ class GitCommit extends GitObject
                     $inc[$parent] = 1;
                     $queue[] = $this->repo->getObject($parent);
                 }
-                else
+                else {
                     $inc[$parent]++;
+                }
             }
         }
 
-        $queue = array($this);
-        $r = array();
+        $queue = [$this];
+        $r = [];
         while (($commit = array_pop($queue)) !== NULL)
         {
             array_unshift($r, $commit);
             foreach ($commit->parents as $parent)
             {
-                if (--$inc[$parent] == 0)
+                if (--$inc[$parent] == 0) {
                     $queue[] = $this->repo->getObject($parent);
+                }
             }
         }
 

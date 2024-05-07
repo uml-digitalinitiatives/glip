@@ -51,54 +51,54 @@ function sha1_hex($bin)
 
 class Git
 {
-    public $dir;
+    public string|false $dir;
 
-    const OBJ_NONE = 0;
-    const OBJ_COMMIT = 1;
-    const OBJ_TREE = 2;
-    const OBJ_BLOB = 3;
-    const OBJ_TAG = 4;
-    const OBJ_OFS_DELTA = 6;
-    const OBJ_REF_DELTA = 7;
+    private array $packs;
 
-    static public function getTypeID($name)
+    const int OBJ_NONE = 0;
+    const int OBJ_COMMIT = 1;
+    const int OBJ_TREE = 2;
+    const int OBJ_BLOB = 3;
+    const int OBJ_TAG = 4;
+    const int OBJ_OFS_DELTA = 6;
+    const int OBJ_REF_DELTA = 7;
+
+    static public function getTypeID(string $name): int
     {
-	if ($name == 'commit')
-	    return Git::OBJ_COMMIT;
-	else if ($name == 'tree')
-	    return Git::OBJ_TREE;
-	else if ($name == 'blob')
-	    return Git::OBJ_BLOB;
-	else if ($name == 'tag')
-	    return Git::OBJ_TAG;
-	throw new Exception(sprintf('unknown type name: %s', $name));
+        return match (strtolower(trim($name))) {
+            'commit' => Git::OBJ_COMMIT,
+            'tree' => Git::OBJ_TREE,
+            'blob' => Git::OBJ_BLOB,
+            'tag' => Git::OBJ_TAG,
+            default => throw new Exception(sprintf('unknown type name: %s', $name)),
+        };
     }
 
-    static public function getTypeName($type)
+    static public function getTypeName(int $type): string
     {
-	if ($type == Git::OBJ_COMMIT)
-	    return 'commit';
-	else if ($type == Git::OBJ_TREE)
-	    return 'tree';
-	else if ($type == Git::OBJ_BLOB)
-	    return 'blob';
-	else if ($type == Git::OBJ_TAG)
-	    return 'tag';
-	throw new Exception(sprintf('no string representation of type %d', $type));
+        return match ($type) {
+            Git::OBJ_COMMIT => 'commit',
+            Git::OBJ_TREE => 'tree',
+            Git::OBJ_BLOB => 'blob',
+            Git::OBJ_TAG => 'tag',
+            default => throw new Exception(sprintf('no string representation of type %d', $type)),
+        };
     }
 
     public function __construct($dir)
     {
         $this->dir = realpath($dir);
-        if ($this->dir === FALSE || !@is_dir($this->dir))
+        if ($this->dir === FALSE || !@is_dir($this->dir)) {
             throw new Exception(sprintf('not a directory: %s', $dir));
-
-	$this->packs = array();
-	$dh = opendir(sprintf('%s/objects/pack', $this->dir));
+        }
+	    $this->packs = array();
+	    $dh = opendir(sprintf('%s/objects/pack', $this->dir));
         if ($dh !== FALSE) {
-            while (($entry = readdir($dh)) !== FALSE)
-                if (preg_match('#^pack-([0-9a-fA-F]{40})\.idx$#', $entry, $m))
+            while (($entry = readdir($dh)) !== FALSE) {
+                if (preg_match('#^pack-([0-9a-fA-F]{40})\.idx$#', $entry, $m)) {
                     $this->packs[] = sha1_bin($m[1]);
+                }
+            }
             closedir($dh);
         }
     }
@@ -109,9 +109,9 @@ class Git
      * @returns array The range where the object can be located (first possible
      * location and past-the-end location)
      */
-    protected function readFanout($f, $object_name, $offset)
+    protected function readFanout($f, $object_name, $offset): array
     {
-        if ($object_name{0} == "\x00")
+        if ($object_name[0] == "\x00")
         {
             $cur = 0;
             fseek($f, $offset);
@@ -119,22 +119,22 @@ class Git
         }
         else
         {
-            fseek($f, $offset + (ord($object_name{0}) - 1)*4);
+            fseek($f, $offset + (ord($object_name[0]) - 1)*4);
             $cur = Binary::fuint32($f);
             $after = Binary::fuint32($f);
         }
 
-        return array($cur, $after);
+        return [$cur, $after];
     }
 
     /**
      * @brief Try to find an object in a pack.
      *
      * @param $object_name (string) name of the object (binary SHA1)
-     * @returns (array) an array consisting of the name of the pack (string) and
+     * @returns (array|null) an array consisting of the name of the pack (string) and
      * the byte offset inside it, or NULL if not found
      */
-    protected function findPackedObject($object_name)
+    protected function findPackedObject(string $object_name): ?array
     {
         foreach ($this->packs as $pack_name)
         {
@@ -150,8 +150,9 @@ class Git
                 list($cur, $after) = $this->readFanout($index, $object_name, 0);
 
                 $n = $after-$cur;
-                if ($n == 0)
+                if ($n == 0) {
                     continue;
+                }
 
                 /*
                  * TODO: do a binary search in [$offset, $offset+24*$n)
@@ -165,7 +166,7 @@ class Git
                     {
                         /* we found the object */
                         fclose($index);
-                        return array($pack_name, $off);
+                        return [$pack_name, $off];
                     }
                 }
             }
@@ -177,8 +178,9 @@ class Git
                 {
                     list($cur, $after) = $this->readFanout($index, $object_name, 8);
 
-                    if ($cur == $after)
+                    if ($cur == $after) {
                         continue;
+                    }
 
                     fseek($index, 8 + 4*255);
                     $total_objects = Binary::fuint32($index);
@@ -188,11 +190,13 @@ class Git
                     for ($i = $cur; $i < $after; $i++)
                     {
                         $name = fread($index, 20);
-                        if ($name == $object_name)
+                        if ($name == $object_name) {
                             break;
+                        }
                     }
-                    if ($i == $after)
+                    if ($i == $after) {
                         continue;
+                    }
 
                     fseek($index, 8 + 4*256 + 24*$total_objects + 4*$i);
                     $off = Binary::fuint32($index);
@@ -205,7 +209,7 @@ class Git
                     }
 
                     fclose($index);
-                    return array($pack_name, $off);
+                    return [$pack_name, $off];
                 }
                 else
                     throw new Exception('unsupported pack index format');
@@ -223,7 +227,7 @@ class Git
      * @param $base (string) the sequence to patch
      * @returns (string) the patched byte sequence
      */
-    protected function applyDelta($delta, $base)
+    protected function applyDelta(string $delta, string $base): string
     {
         $pos = 0;
 
@@ -233,20 +237,36 @@ class Git
         $r = '';
         while ($pos < strlen($delta))
         {
-            $opcode = ord($delta{$pos++});
+            $opcode = ord($delta[$pos++]);
             if ($opcode & 0x80)
             {
                 /* copy a part of $base */
                 $off = 0;
-                if ($opcode & 0x01) $off = ord($delta{$pos++});
-                if ($opcode & 0x02) $off |= ord($delta{$pos++}) <<  8;
-                if ($opcode & 0x04) $off |= ord($delta{$pos++}) << 16;
-                if ($opcode & 0x08) $off |= ord($delta{$pos++}) << 24;
+                if ($opcode & 0x01) {
+                    $off = ord($delta[$pos++]);
+                }
+                if ($opcode & 0x02) {
+                    $off |= ord($delta[$pos++]) <<  8;
+                }
+                if ($opcode & 0x04) {
+                    $off |= ord($delta[$pos++]) << 16;
+                }
+                if ($opcode & 0x08) {
+                    $off |= ord($delta[$pos++]) << 24;
+                }
                 $len = 0;
-                if ($opcode & 0x10) $len = ord($delta{$pos++});
-                if ($opcode & 0x20) $len |= ord($delta{$pos++}) <<  8;
-                if ($opcode & 0x40) $len |= ord($delta{$pos++}) << 16;
-                if ($len == 0) $len = 0x10000;
+                if ($opcode & 0x10) {
+                    $len = ord($delta[$pos++]);
+                }
+                if ($opcode & 0x20) {
+                    $len |= ord($delta[$pos++]) <<  8;
+                }
+                if ($opcode & 0x40) {
+                    $len |= ord($delta[$pos++]) << 16;
+                }
+                if ($len == 0) {
+                    $len = 0x10000;
+                }
                 $r .= substr($base, $off, $len);
             }
             else
@@ -267,7 +287,7 @@ class Git
      * @returns (array) an array consisting of the object type (int) and the
      * binary representation of the object (string)
      */
-    protected function unpackObject($pack, $object_offset)
+    protected function unpackObject($pack, int $object_offset): array
     {
         fseek($pack, $object_offset);
 
@@ -309,7 +329,7 @@ class Git
             do
             {
                 $offset++;
-                $c = ord($buf{$pos++});
+                $c = ord($buf[$pos++]);
                 $offset = ($offset << 7) + ($c & 0x7F);
             }
             while ($c & 0x80);
@@ -336,7 +356,7 @@ class Git
         else
             throw new Exception(sprintf('object of unknown type %d', $type));
 
-        return array($type, $data);
+        return [$type, $data];
     }
 
     /**
@@ -348,25 +368,26 @@ class Git
      * @returns (array) an array consisting of the object type (int) and the
      * binary representation of the object (string)
      */
-    protected function getRawObject($object_name)
+    protected function getRawObject(string $object_name)
     {
-        static $cache = array();
+        static $cache = [];
         /* FIXME allow limiting the cache to a certain size */
 
-        if (isset($cache[$object_name]))
+        if (isset($cache[$object_name])) {
             return $cache[$object_name];
-	$sha1 = sha1_hex($object_name);
-	$path = sprintf('%s/objects/%s/%s', $this->dir, substr($sha1, 0, 2), substr($sha1, 2));
-	if (file_exists($path))
-	{
+        }
+	    $sha1 = sha1_hex($object_name);
+	    $path = sprintf('%s/objects/%s/%s', $this->dir, substr($sha1, 0, 2), substr($sha1, 2));
+	    if (file_exists($path))
+	    {
             list($hdr, $object_data) = explode("\0", gzuncompress(file_get_contents($path)), 2);
 
-	    sscanf($hdr, "%s %d", $type, $object_size);
-	    $object_type = Git::getTypeID($type);
+	        sscanf($hdr, "%s %d", $type, $object_size);
+	        $object_type = Git::getTypeID($type);
             $r = array($object_type, $object_data);
-	}
-	else if ($x = $this->findPackedObject($object_name))
-	{
+	    }
+	    else if ($x = $this->findPackedObject($object_name))
+	    {
             list($pack_name, $object_offset) = $x;
 
             $pack = fopen(sprintf('%s/objects/pack/pack-%s.pack', $this->dir, sha1_hex($pack_name)), 'rb');
@@ -375,14 +396,16 @@ class Git
             /* check magic and version */
             $magic = fread($pack, 4);
             $version = Binary::fuint32($pack);
-            if ($magic != 'PACK' || $version != 2)
+            if ($magic != 'PACK' || $version != 2) {
                 throw new Exception('unsupported pack format');
+            }
 
             $r = $this->unpackObject($pack, $object_offset);
             fclose($pack);
-	}
-        else
+	    }
+        else {
             throw new Exception(sprintf('object not found: %s', sha1_hex($object_name)));
+        }
         $cache[$object_name] = $r;
         return $r;
     }
@@ -393,13 +416,13 @@ class Git
      * @param $name (string) name of the object (binary SHA1)
      * @returns (GitObject) the object
      */
-    public function getObject($name)
+    public function getObject(string $name)
     {
-	list($type, $data) = $this->getRawObject($name);
-	$object = GitObject::create($this, $type);
-	$object->unserialize($data);
-	assert($name == $object->getName());
-	return $object;
+	    list($type, $data) = $this->getRawObject($name);
+	    $object = GitObject::create($this, $type);
+	    $object->unserialize($data);
+	    assert($name == $object->getName());
+	    return $object;
     }
 
     /**
@@ -408,31 +431,34 @@ class Git
      * @param $branch (string) The branch to look up, defaulting to @em master.
      * @returns (string) The tip of the branch (binary sha1).
      */
-    public function getTip($branch='master')
+    public function getTip(string $branch='master'): string
     {
-	$subpath = sprintf('refs/heads/%s', $branch);
-	$path = sprintf('%s/%s', $this->dir, $subpath);
-	if (file_exists($path))
-	    return sha1_bin(file_get_contents($path));
-	$path = sprintf('%s/packed-refs', $this->dir);
-	if (file_exists($path))
-	{
-	    $head = NULL;
-	    $f = fopen($path, 'rb');
-	    flock($f, LOCK_SH);
-	    while ($head === NULL && ($line = fgets($f)) !== FALSE)
+	    $subpath = sprintf('refs/heads/%s', $branch);
+	    $path = sprintf('%s/%s', $this->dir, $subpath);
+	    if (file_exists($path)) {
+            return sha1_bin(file_get_contents($path));
+        }
+	    $path = sprintf('%s/packed-refs', $this->dir);
+	    if (file_exists($path))
 	    {
-		if ($line{0} == '#')
-		    continue;
-		$parts = explode(' ', trim($line));
-		if (count($parts) == 2 && $parts[1] == $subpath)
-		    $head = sha1_bin($parts[0]);
+	        $head = NULL;
+	        $f = fopen($path, 'rb');
+	        flock($f, LOCK_SH);
+	        while ($head === NULL && ($line = fgets($f)) !== FALSE)
+	        {
+		    if (str_starts_with($line[0],'#')) {
+                continue;
+            }
+		    $parts = explode(' ', trim($line));
+		    if (count($parts) == 2 && $parts[1] == $subpath)
+		        $head = sha1_bin($parts[0]);
+	        }
+	        fclose($f);
+	        if ($head !== NULL) {
+                return $head;
+            }
 	    }
-	    fclose($f);
-	    if ($head !== NULL)
-		return $head;
-	}
-	throw new Exception(sprintf('no such branch: %s', $branch));
+	    throw new Exception(sprintf('no such branch: %s', $branch));
     }
 }
 
